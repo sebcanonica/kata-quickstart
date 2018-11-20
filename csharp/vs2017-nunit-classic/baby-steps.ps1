@@ -1,13 +1,17 @@
-
 <#
-	.SYNOPSIS Run build and tests periocically and revert repository if anything fails
-	.PARAMETER Seconds Time, in seconds, between runs
-	.PARAMETER Loop Restart the timer automatically
+	.SYNOPSIS
+	Run build and tests periocically and revert repository if anything fails
+	.PARAMETER Seconds
+	Time, in seconds, between runs
+	.PARAMETER Loop
+	Restart the timer automatically
 #>
 param (
 	[Int32] $Seconds = 120,
 	[switch] $Loop
 )
+
+Import-Module .\Tools.psm1
 
 function Start-Countdown {
 	<#
@@ -32,39 +36,8 @@ function Start-Countdown {
 }
 
 
-function Reset-Repository {
-	Write-Host "Reseting!!!" -ForegroundColor Red
-	git reset --hard
-}
-
-
-
 do {
 	Start-Countdown -Seconds $Seconds -Message "Make build AND tests pass (Ctr-C to stop)"
 
-	# Build Solution
-	$path = & "${Env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath
-	if (! $path) {
-		Throw "Could not locate vswhere"
-	}
-	$path = join-path $path 'MSBuild\15.0\Bin\MSBuild.exe'
-	if (! (test-path $path) ) {
-		Throw "Could not locate MSBuild"
-	}
-	& $path .\MyLibrary\MyLibrary.sln
-
-	if( $LastExitCode -ne 0) {
-		Reset-Repository
-	} else {
-
-		# Run tests
-		~\.nuget\packages\nunit.consolerunner\3.9.0\tools\nunit3-console.exe  .\MyLibrary\MyLibrary.csproj
-		if( $LastExitCode -ne 0) {
-			Reset-Repository
-		} else {
-			Write-Host "Well done!" -ForegroundColor Green
-		}
-
-	}
-
+	Test-Solution -OnFailure { Reset-Repository }  -OnSuccess { Write-Host "Well done!" -ForegroundColor Green }
 } while ($Loop)
